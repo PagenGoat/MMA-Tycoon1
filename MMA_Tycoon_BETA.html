@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Octagon Tycoon 4.1: Free Agent Fix</title>
+    <title>Octagon Tycoon 4.2: IRL Venues</title>
     <style>
         :root {
             --primary: #dc2626; /* Deep Red */
@@ -85,6 +85,25 @@
         .slot-fighter.filled { border: 1px solid var(--info); background: var(--panel); }
         .slot-fighter.active { border: 2px solid var(--gold); box-shadow: 0 0 5px var(--gold); }
         .slot-vs { font-weight: 900; color: var(--primary); font-style: italic; }
+        
+        /* Venue Cards */
+        .venue-card {
+            border: 1px solid var(--border);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .venue-card:hover {
+            border-color: var(--info);
+        }
+        .venue-card.selected {
+            border: 2px solid var(--primary);
+            box-shadow: 0 0 10px rgba(220, 38, 38, 0.4);
+        }
+        .venue-details {
+            font-size: 0.8em;
+            color: #94a3b8;
+            margin-top: 5px;
+        }
 
         /* --- EVENT SIMULATION --- */
         .log-container { background: #000; border: 1px solid #333; height: 350px; overflow-y: auto; padding: 15px; font-family: 'Courier New', monospace; color: #4ade80; margin-bottom: 20px; font-size: 0.9em; line-height: 1.4; }
@@ -207,10 +226,18 @@ const WEIGHT_CLASSES = [
     { id: 'HW', name: 'Heavyweight', limit: 265, champion: null }
 ];
 const VENUES = [
-    { name: 'Local Gym', cost: 1000, capacity: 500, repBonus: 0, gateMultiplier: 1.0, sponsorBonus: 0 },
-    { name: 'City Theatre', cost: 5000, capacity: 2000, repBonus: 5, gateMultiplier: 1.5, sponsorBonus: 5000 },
-    { name: 'National Arena', cost: 25000, capacity: 10000, repBonus: 10, gateMultiplier: 2.5, sponsorBonus: 15000 },
-    { name: 'Global Superdome', cost: 100000, capacity: 50000, repBonus: 25, gateMultiplier: 4.0, sponsorBonus: 50000 }
+    // Tier 1: Small/Local (Fight Night/Apex Scale)
+    { name: 'Local Gym', location: 'USA', cost: 1000, capacity: 500, repBonus: 0, gateMultiplier: 1.0, sponsorBonus: 0 },
+    { name: 'UFC Apex', location: 'Las Vegas, USA', cost: 10000, capacity: 1000, repBonus: 5, gateMultiplier: 1.5, sponsorBonus: 5000 },
+    // Tier 2: Mid-Tier (Standard PPV/International)
+    { name: 'The O2 Arena', location: 'London, UK', cost: 50000, capacity: 20000, repBonus: 15, gateMultiplier: 2.5, sponsorBonus: 50000 },
+    { name: 'Madison Square Garden', location: 'New York, USA', cost: 75000, capacity: 20000, repBonus: 20, gateMultiplier: 3.0, sponsorBonus: 75000 },
+    { name: 'T-Mobile Arena', location: 'Las Vegas, USA', cost: 100000, capacity: 20000, repBonus: 25, gateMultiplier: 3.5, sponsorBonus: 100000 },
+    { name: 'Etihad Arena', location: 'Abu Dhabi, UAE', cost: 80000, capacity: 13000, repBonus: 20, gateMultiplier: 3.2, sponsorBonus: 80000 },
+    // Tier 3: Stadium Shows (Mega Events)
+    { name: 'Arena da Baixada', location: 'Curitiba, BRA', cost: 200000, capacity: 45000, repBonus: 35, gateMultiplier: 5.0, sponsorBonus: 150000 },
+    { name: 'Rogers Centre', location: 'Toronto, CAN', cost: 300000, capacity: 55000, repBonus: 45, gateMultiplier: 6.0, sponsorBonus: 250000 },
+    { name: 'Marvel Stadium', location: 'Melbourne, AUS', cost: 500000, capacity: 56000, repBonus: 50, gateMultiplier: 7.0, sponsorBonus: 300000 }
 ];
 const NATIONS = [
     { code: 'USA', flag: '🇺🇸', names: ['Smith', 'Johnson', 'Miller', 'Jones', 'Brown', 'Davis', 'Wilson', 'Anderson', 'Thomas', 'Taylor', 'Moore'], first: ['Mike', 'Chris', 'Jon', 'Daniel', 'Ryan', 'Nick', 'Matt', 'Dustin', 'Max', 'TJ', 'Tony'] },
@@ -599,9 +626,10 @@ function renderMatchmaker(c) {
                             <div class="card venue-card ${selectedVenue && selectedVenue.name === v.name ? 'selected' : (i === 0 && !selectedVenue ? 'selected' : '')}" onclick="selectVenue(${i})" id="venue-${i}">
                                 <div style="font-weight:bold">${v.name}</div>
                                 <div class="venue-details">
+                                    Location: ${v.location}<br>
+                                    Capacity: ${v.capacity.toLocaleString()}<br>
                                     Cost: $${v.cost.toLocaleString()}<br>
-                                    Gate Multiplier: x${v.gateMultiplier.toFixed(1)}<br>
-                                    Sponsor Bonus: $${v.sponsorBonus.toLocaleString()}
+                                    Gate Multiplier: x${v.gateMultiplier.toFixed(1)}
                                 </div>
                             </div>
                         `).join('')}
@@ -615,7 +643,7 @@ function renderMatchmaker(c) {
                 <button onclick="addFightSlot()" style="width:100%; border:1px dashed #666; text-align:center; padding:15px; margin-top:10px;">+ Add Fight Slot</button>
                 <div style="margin-top:20px; border-top:1px solid #333; padding-top:20px;">
                     <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
-                        <span>Total Projected Costs:</span>
+                        <span>Projected Event Cost (Venue + Salaries):</span>
                         <span id="proj-cost" style="color:#ef4444">$0</span>
                     </div>
                     <button class="btn-action" style="width:100%" onclick="finalizeCard()">Confirm Card (Pay Venue/Salaries)</button>
@@ -808,7 +836,7 @@ function finalizeCard() {
 
     const totalCost = selectedVenue.cost + calcFightSalaries();
     if(game.money < totalCost) {
-        notify("Insufficient funds to book the event!");
+        notify("Insufficient funds to book the event! Total cost is $" + totalCost.toLocaleString());
         SFX.error(); return;
     }
 
@@ -1395,5 +1423,4 @@ initGame();
 updateUI(); // Initial UI update
 </script>
 </body>
-
 </html>
