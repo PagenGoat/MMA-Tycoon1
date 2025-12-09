@@ -1395,4 +1395,5 @@ initGame();
 updateUI(); // Initial UI update
 </script>
 </body>
+
 </html>
