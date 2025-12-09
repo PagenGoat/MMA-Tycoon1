@@ -1,0 +1,1398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Octagon Tycoon 4.1: Free Agent Fix</title>
+    <style>
+        :root {
+            --primary: #dc2626; /* Deep Red */
+            --secondary: #2563eb; /* Royal Blue */
+            --gold: #d97706;
+            --bg: #0f172a;
+            --panel: #1e293b;
+            --text: #f1f5f9;
+            --border: #334155;
+            --success: #10b981;
+            --danger: #ef4444;
+            --info: #3b82f6;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        /* --- LAYOUT --- */
+        aside {
+            width: 260px;
+            background: #111;
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            padding: 15px;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+
+        main { flex: 1; display: flex; flex-direction: column; overflow: hidden; position: relative; }
+        header { background: var(--panel); padding: 15px 25px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.3); z-index: 10; }
+        .content-area { flex: 1; overflow-y: auto; padding: 25px; padding-bottom: 80px; }
+
+        /* --- COMPONENTS --- */
+        h2 { border-bottom: 2px solid var(--primary); padding-bottom: 10px; margin-top: 0; display: flex; justify-content: space-between; align-items: center; }
+        
+        button { background: var(--panel); color: var(--text); border: 1px solid var(--border); padding: 12px; cursor: pointer; border-radius: 6px; font-weight: 600; transition: all 0.2s; text-align: left; }
+        button:hover { background: #334155; transform: translateY(-1px); }
+        button.active { background: var(--primary); border-color: var(--primary); box-shadow: 0 0 10px rgba(220, 38, 38, 0.4); }
+
+        .btn-action { background: linear-gradient(135deg, var(--gold), #b45309); color: #fff; text-align: center; border: none; font-size: 1.1em; margin-top: auto; }
+        .btn-small { padding: 5px 10px; font-size: 0.8em; text-align: center; width: auto; display: inline-block;}
+        .btn-hire { background: var(--success); color: #000; text-align: center; }
+
+        /* --- GRIDS & CARDS --- */
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; }
+        .card { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 15px; position: relative; overflow: hidden; }
+        .card-header { display: flex; justify-content: space-between; margin-bottom: 10px; }
+        .card-title { font-weight: 800; font-size: 1.1em; display: flex; gap: 8px; align-items: center; }
+        
+        .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; font-size: 0.9em; color: #94a3b8; margin: 10px 0; }
+        .stat-val { color: #fff; font-weight: bold; }
+
+        .weight-tag { font-size: 0.75em; text-transform: uppercase; background: #334155; padding: 2px 6px; border-radius: 4px; color: #cbd5e1; }
+        .champ-tag { background: var(--gold); color: #000; font-weight: bold; padding: 2px 8px; border-radius: 4px; font-size: 0.7em; }
+
+        /* --- MARKET SPECIFIC --- */
+        .market-filters { display: flex; gap: 10px; margin-bottom: 20px; align-items: center;}
+        .market-filters select { padding: 8px; background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: 4px; }
+        
+        /* --- MATCHMAKER SPECIFIC --- */
+        .fight-slot {
+            background: #151f32;
+            border: 1px solid var(--border);
+            margin-bottom: 15px;
+            padding: 15px;
+            border-radius: 8px;
+        }
+        .slot-fighter { width: 45%; text-align: center; cursor: pointer; padding: 10px; border-radius: 6px; border: 1px dashed var(--border); transition: 0.2s; }
+        .slot-fighter:hover { background: #222; }
+        .slot-fighter.filled { border: 1px solid var(--info); background: var(--panel); }
+        .slot-fighter.active { border: 2px solid var(--gold); box-shadow: 0 0 5px var(--gold); }
+        .slot-vs { font-weight: 900; color: var(--primary); font-style: italic; }
+
+        /* --- EVENT SIMULATION --- */
+        .log-container { background: #000; border: 1px solid #333; height: 350px; overflow-y: auto; padding: 15px; font-family: 'Courier New', monospace; color: #4ade80; margin-bottom: 20px; font-size: 0.9em; line-height: 1.4; }
+        .health-bar-container { background:#333; height:10px; width:200px; margin: 5px 0; border-radius: 5px; overflow: hidden;}
+        .health-bar-fill { height:100%; transition: width 0.3s; }
+
+        /* --- FIGHTER PROFILE --- */
+        .profile-stat-bar { background: #334155; height: 8px; border-radius: 4px; margin-bottom: 5px; }
+        .profile-stat-fill { background: var(--primary); height: 100%; border-radius: 4px; transition: width 0.3s; }
+
+        /* --- UTILS --- */
+        .money { color: var(--success); font-weight: bold; }
+        .hidden { display: none !important; }
+        .sound-toggle { position: fixed; bottom: 20px; left: 20px; font-size: 20px; cursor: pointer; z-index: 100; opacity: 0.5; }
+        .sound-toggle:hover { opacity: 1; }
+        #toast { position: fixed; bottom: 30px; right: 30px; background: var(--secondary); color: white; padding: 15px 25px; border-radius: 8px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.5); transform: translateY(100px); transition: 0.3s; z-index: 1000; }
+        #toast.show { transform: translateY(0); }
+    </style>
+</head>
+<body>
+
+<div class="sound-toggle" onclick="toggleMute()" title="Toggle Sound">🔊</div>
+
+<aside>
+    <div style="padding: 10px 0; text-align: center;">
+        <div style="font-size: 1.5em; font-weight: 900; letter-spacing: -1px;">OCTAGON <span style="color:var(--primary)">TYCOON</span></div>
+        <div style="font-size: 0.7em; color: #64748b; letter-spacing: 2px;">GLOBAL DOMINATION</div>
+    </div>
+    
+    <button onclick="nav('dashboard')" id="nav-dashboard" class="active">📊 Dashboard</button>
+    <button onclick="nav('roster')" id="nav-roster">👥 My Roster</button>
+    <button onclick="nav('training')" id="nav-training">🏋️ Training & Gym</button>
+    <button onclick="nav('championships')" id="nav-championships">👑 Championships</button>
+    <button onclick="nav('rankings')" id="nav-rankings">🏆 Rankings</button>
+    <button onclick="nav('market')" id="nav-market">🌍 Free Agents</button>
+    <button onclick="nav('matchmaker')" id="nav-matchmaker">⚔️ Matchmaker</button>
+    
+    <div style="margin-top:auto; padding-top:10px; border-top:1px solid var(--border)">
+        <div style="font-size:0.8em; color:#94a3b8; margin-bottom:5px">Upcoming Event</div>
+        <div id="sidebar-event-status" style="font-size:0.9em; font-weight:bold; color:var(--gold)">No Event Booked</div>
+        <div id="sidebar-event-venue" style="font-size:0.8em; color:#94a3b8;"></div>
+    </div>
+    <button onclick="nav('event')" id="btn-event-nav" class="btn-action hidden">GO TO EVENT</button>
+</aside>
+
+<main>
+    <header>
+        <div style="display:flex; gap:30px;">
+            <div>💰 <span id="ui-money" class="money">$${250000..toLocaleString()}</span></div>
+            <div>⭐ Rep: <span id="ui-rep">10</span></div>
+            <div>🗓️ Week: <span id="ui-week">1</span></div>
+            <div>⚖️ Fin: <span id="ui-fin-status"></span></div>
+        </div>
+        <button class="btn-small" onclick="nextWeek()">Advance Week >></button>
+    </header>
+
+    <div id="view-container" class="content-area">
+        </div>
+</main>
+
+<div id="toast">Notification</div>
+
+<script>
+/* =========================================
+   AUDIO ENGINE (Web Audio API)
+   ========================================= */
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+let isMuted = false;
+const SFX = {
+    click: () => playTone(800, 'sine', 0.05),
+    error: () => playTone(150, 'sawtooth', 0.2),
+    cash: () => { playTone(1200, 'square', 0.1); setTimeout(()=>playTone(1600, 'square', 0.2), 100); },
+    bell: () => playTone(600, 'triangle', 0.8, 1.5),
+    hit_light: () => playNoise(0.05, 1000),
+    hit_heavy: () => playNoise(0.15, 600),
+    cheer: () => playNoise(1.5, 500)
+};
+function playTone(freq, type, duration, decay=0.1) {
+    if(isMuted) return;
+    if(audioCtx.state === 'suspended') audioCtx.resume();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+    gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration + decay);
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.start(); osc.stop(audioCtx.currentTime + duration + decay);
+}
+function playNoise(duration, filterFreq) {
+    if(isMuted) return;
+    const bufferSize = audioCtx.sampleRate * duration;
+    const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+    const noise = audioCtx.createBufferSource();
+    noise.buffer = buffer;
+    const gain = audioCtx.createGain(); gain.gain.value = 0.1;
+    const filter = audioCtx.createBiquadFilter();
+    filter.type = 'lowpass'; filter.frequency.value = filterFreq;
+    noise.connect(filter); filter.connect(gain); gain.connect(audioCtx.destination);
+    noise.start();
+}
+function toggleMute() {
+    isMuted = !isMuted;
+    document.querySelector('.sound-toggle').innerText = isMuted ? '🔇' : '🔊';
+}
+
+/* =========================================
+   DATA & CONFIG
+   ========================================= */
+const WEIGHT_CLASSES = [
+    { id: 'FLW', name: 'Flyweight', limit: 125, champion: null },
+    { id: 'BW', name: 'Bantamweight', limit: 135, champion: null },
+    { id: 'FW', name: 'Featherweight', limit: 145, champion: null },
+    { id: 'LW', name: 'Lightweight', limit: 155, champion: null },
+    { id: 'WW', name: 'Welterweight', limit: 170, champion: null },
+    { id: 'MW', name: 'Middleweight', limit: 185, champion: null },
+    { id: 'LHW', name: 'Light Heavyweight', limit: 205, champion: null },
+    { id: 'HW', name: 'Heavyweight', limit: 265, champion: null }
+];
+const VENUES = [
+    { name: 'Local Gym', cost: 1000, capacity: 500, repBonus: 0, gateMultiplier: 1.0, sponsorBonus: 0 },
+    { name: 'City Theatre', cost: 5000, capacity: 2000, repBonus: 5, gateMultiplier: 1.5, sponsorBonus: 5000 },
+    { name: 'National Arena', cost: 25000, capacity: 10000, repBonus: 10, gateMultiplier: 2.5, sponsorBonus: 15000 },
+    { name: 'Global Superdome', cost: 100000, capacity: 50000, repBonus: 25, gateMultiplier: 4.0, sponsorBonus: 50000 }
+];
+const NATIONS = [
+    { code: 'USA', flag: '🇺🇸', names: ['Smith', 'Johnson', 'Miller', 'Jones', 'Brown', 'Davis', 'Wilson', 'Anderson', 'Thomas', 'Taylor', 'Moore'], first: ['Mike', 'Chris', 'Jon', 'Daniel', 'Ryan', 'Nick', 'Matt', 'Dustin', 'Max', 'TJ', 'Tony'] },
+    { code: 'BRA', flag: '🇧🇷', names: ['Silva', 'Santos', 'Oliveira', 'Souza', 'Lima', 'Costa', 'Pereira', 'Nogueira', 'Alves', 'Vitor'], first: ['Anderson', 'Jose', 'Charles', 'Junior', 'Lyoto', 'Wanderlei', 'Paulo', 'Renato', 'Elias', 'Pedro'] },
+    { code: 'RUS', flag: '🇷🇺', names: ['Nurmagomedov', 'Emelianenko', 'Yan', 'Makhachev', 'Volkov', 'Pavlovich', 'Shlemenko', 'Malykhin'], first: ['Fedor', 'Khabib', 'Petr', 'Islam', 'Alexander', 'Sergei', 'Vadim', 'Anatoly'] },
+    { code: 'GBR', flag: '🇬🇧', names: ['Bisping', 'Edwards', 'Aspinall', 'Till', 'Pimblett', 'Hardy', 'McGregor'], first: ['Michael', 'Leon', 'Tom', 'Darren', 'Paddy', 'Dan', 'Conor'] },
+    { code: 'MEX', flag: '🇲🇽', names: ['Moreno', 'Rodriguez', 'Grasso', 'Velasquez', 'Diaz', 'Cejudo'], first: ['Brandon', 'Yair', 'Alexa', 'Cain', 'Nate', 'Henry'] },
+    { code: 'JPN', flag: '🇯🇵', names: ['Sakuraba', 'Horiguchi', 'Okami', 'Uno', 'Gomi', 'Yamamoto'], first: ['Kazushi', 'Kyoji', 'Yushin', 'Caol', 'Takanori', 'Norifumi'] },
+    { code: 'NGA', flag: '🇳🇬', names: ['Adesanya', 'Usman', 'Ngannou'], first: ['Israel', 'Kamaru', 'Francis'] },
+    { code: 'CAN', flag: '🇨🇦', names: ['St-Pierre', 'MacDonald', 'Aubin-Mercier', 'Ladd'], first: ['Georges', 'Rory', 'Olivier', 'Aspen'] },
+    { code: 'POL', flag: '🇵🇱', names: ['Błachowicz', 'Kowalkiewicz', 'Jedrzejczyk'], first: ['Jan', 'Karolina', 'Joanna'] },
+    { code: 'AUS', flag: '🇦🇺', names: ['Volkanovski', 'Whittaker', 'Tafa'], first: ['Alexander', 'Robert', 'Justin'] },
+    { code: 'KOR', flag: '🇰🇷', names: ['Jung', 'Choi', 'Park'], first: ['Chan Sung', 'Doo Ho', 'Yushin'] },
+];
+const STYLES = ['Kickboxer', 'Wrestler', 'BJJ Specialist', 'Boxer', 'All-Rounder', 'Muay Thai', 'Sambo'];
+
+/* =========================================
+   GAME ENGINE STATE
+   ========================================= */
+let game = {
+    money: 250000,
+    week: 1,
+    reputation: 10,
+    roster: [],
+    market: [],
+    worldPool: [],
+    gymLevel: 1, // 1-5, affects training cost/bonus
+    sponsorship: 0, // Weekly income from sponsors
+    card: {
+        booked: false,
+        venue: null,
+        fights: [], 
+        totalCost: 0
+    },
+    injuries: [], // { fighterId: id, weeksOut: 0 }
+    marketFilter: 'ALL',
+    marketSort: 'RANK'
+};
+
+class Fighter {
+    constructor(id, initialRankBonus = 0) {
+        this.id = id || Math.random().toString(36).substr(2, 9);
+        const nat = NATIONS[Math.floor(Math.random() * NATIONS.length)];
+        this.nation = nat;
+        this.firstName = nat.first[Math.floor(Math.random() * nat.first.length)];
+        this.lastName = nat.names[Math.floor(Math.random() * nat.names.length)];
+        this.nickname = Math.random() > 0.6 ? `"${['The Assassin','Pitbull','Iron','Chaos','Bones','Spider','Eagle', 'The Great', 'The Iceman', 'Showtime'][Math.floor(Math.random()*10)]}"` : "";
+        this.age = Math.floor(Math.random() * (36 - 21) + 21);
+        
+        const wcIndex = Math.floor(Math.random() * WEIGHT_CLASSES.length);
+        this.weightClass = WEIGHT_CLASSES[wcIndex];
+        
+        this.style = STYLES[Math.floor(Math.random() * STYLES.length)];
+        // Stats (40-99)
+        this.striking = this.genStat(this.style.includes('boxer') || this.style.includes('Thai') || this.style.includes('Kickboxer'));
+        this.grappling = this.genStat(this.style.includes('Wrestler') || this.style.includes('BJJ') || this.style.includes('Sambo'));
+        this.stamina = Math.floor(Math.random() * (99 - 60) + 60);
+        this.chin = Math.floor(Math.random() * (99 - 50) + 50);
+        
+        this.wins = 0;
+        this.losses = 0;
+        this.rankPoints = 1000 + (Math.random() * 200) + initialRankBonus;
+        this.isChampion = false;
+        this.trainingFocus = null; 
+        
+        const totalStats = this.striking + this.grappling + this.stamina;
+        this.value = Math.floor(totalStats * 15) + (Math.random() * 1000);
+        this.salary = Math.floor(this.value / 10);
+        this.contract = 0; 
+    }
+
+    genStat(bonus) {
+        let base = Math.floor(Math.random() * (90 - 40) + 40);
+        if (bonus) base += 15;
+        if (base > 99) base = 99;
+        return base;
+    }
+
+    get fullName() { return `${this.nation.flag} ${this.firstName} ${this.nickname} ${this.lastName}`; }
+}
+
+function initGame() {
+    // Generate 1000+ fighters (1000)
+    for(let i=0; i<1000; i++) game.worldPool.push(new Fighter());
+    
+    // Seed initial champions (Top fighter in each class)
+    WEIGHT_CLASSES.forEach(wc => {
+        const champ = getRankedFighters(wc.id)[0];
+        if(champ) {
+            champ.isChampion = true;
+            wc.champion = champ.id;
+        }
+    });
+
+    refreshMarket();
+    updateUI();
+    nav('dashboard');
+}
+
+/* =========================================
+   UI NAVIGATION & RENDERING
+   ========================================= */
+function nav(view, fighterId = null) {
+    SFX.click();
+    document.querySelectorAll('aside button').forEach(b => b.classList.remove('active'));
+    const btn = document.getElementById(`nav-${view}`);
+    if(btn) btn.classList.add('active');
+
+    const container = document.getElementById('view-container');
+    container.innerHTML = '';
+
+    if (view === 'dashboard') renderDashboard(container);
+    if (view === 'roster') renderRoster(container);
+    if (view === 'market') renderMarket(container);
+    if (view === 'matchmaker') renderMatchmaker(container);
+    if (view === 'event') renderEvent(container);
+    if (view === 'rankings') renderRankings(container);
+    if (view === 'training') renderTraining(container);
+    if (view === 'championships') renderChampionships(container);
+    if (view === 'profile') renderFighterProfile(container, fighterId);
+
+    // After rendering a view, check if the market view needs special update (e.g., after signing/releasing a fighter)
+    if (view === 'market' && document.getElementById('market-grid')) {
+        renderMarketFighters();
+    }
+}
+
+// --- DASHBOARD ---
+function renderDashboard(c) {
+    const weeklyNet = game.sponsorship - calcOverhead();
+    
+    c.innerHTML = `
+        <h2>Franchise Dashboard <span style="font-size:0.6em; color:#888">Week ${game.week} | Gym Level ${game.gymLevel}</span></h2>
+        <div class="grid">
+            <div class="card">
+                <div class="card-title">🏦 Financial Health</div>
+                <div style="font-size:2em; font-weight:bold; color:var(--success)">$${game.money.toLocaleString()}</div>
+                <div style="margin-top:10px; font-size:0.9em;">
+                    Weekly Net: <span style="color:${weeklyNet >= 0 ? 'var(--success)' : 'var(--danger)'}">$${weeklyNet.toLocaleString()}</span><br>
+                    Sponsorships: <span style="color:var(--info)">+$${game.sponsorship.toLocaleString()}</span>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-title">🏥 Injury Report (${game.injuries.length})</div>
+                <div style="font-size:2em;">${game.injuries.length} <span style="font-size:0.5em; color:#888">Fighters Out</span></div>
+                <div style="margin-top:10px;">
+                    ${game.injuries.map(i => {
+                        const f = getFighter(i.fighterId);
+                        return `<span style="font-size:0.9em; color:var(--danger)">${f.lastName} (${i.weeksOut} wks)</span><br>`;
+                    }).join('') || 'All clear!'}
+                </div>
+            </div>
+            <div class="card" style="border-color: ${game.card.booked ? 'var(--success)' : 'var(--border)'}">
+                <div class="card-title">📅 Next Event</div>
+                ${game.card.booked 
+                    ? `<p style="font-weight:bold; color:var(--info)">Venue: ${game.card.venue.name}</p><div style="color:var(--success)">${game.card.fights.length} Fights Booked</div>
+                       <button class="btn-action" style="width:100%" onclick="nav('event')">Start Event</button>` 
+                    : `<div style="color:#888">No fights scheduled.</div><button onclick="nav('matchmaker')">Book Event</button>`}
+            </div>
+        </div>
+        
+        <h3 style="margin-top:30px;">👑 Current Champions</h3>
+        <div class="grid">
+            ${WEIGHT_CLASSES.map(wc => `
+                <div class="card" style="padding:10px; cursor:pointer;" onclick="nav('profile', '${wc.champion}')">
+                    <span class="weight-tag" style="background:var(--primary); color:#fff">${wc.name} CHAMPION</span>
+                    <div style="font-weight:bold; margin-top:5px;">
+                        ${wc.champion ? getFighter(wc.champion).fullName : '<span style="color:var(--danger)">VACANT</span>'}
+                    </div>
+                </div>
+            `).join('')}
+        </div>
+    `;
+}
+
+// --- ROSTER ---
+function renderRoster(c) {
+    c.innerHTML = `<h2>Active Roster (${game.roster.length})</h2><div class="grid" id="roster-grid"></div>`;
+    const grid = document.getElementById('roster-grid');
+    if(game.roster.length === 0) { grid.innerHTML = 'You have no fighters. Go to the market!'; return; }
+
+    game.roster.forEach(f => {
+        const isInjured = game.injuries.some(i => i.fighterId === f.id);
+        const injuryStatus = isInjured ? `<span style="color:var(--danger); font-weight:bold;"> (INJURED)</span>` : '';
+
+        const div = document.createElement('div');
+        div.className = 'card';
+        div.style.cursor = 'pointer';
+        div.onclick = () => nav('profile', f.id);
+        
+        div.innerHTML = `
+            <div class="card-header">
+                <span class="weight-tag">${f.weightClass.name}</span>
+                <span style="color:#aaa">Rank: ${f.isChampion ? '<span class="champ-tag">CHAMP</span>' : `#${getRank(f)}`}</span>
+            </div>
+            <div class="card-title">${f.fullName} ${injuryStatus}</div>
+            <div class="stat-grid">
+                <div>STR: <span class="stat-val">${f.striking}</span></div>
+                <div>GRP: <span class="stat-val">${f.grappling}</span></div>
+                <div>REC: <span class="stat-val" style="color:var(--gold)">${f.wins}-${f.losses}</span></div>
+                <div>SAL: <span class="money">$${f.salary.toLocaleString()}</span></div>
+            </div>
+            <div style="font-size:0.8em; color:var(--primary)">Contract: ${f.contract} fights left</div>
+        `;
+        grid.appendChild(div);
+    });
+}
+
+// --- FREE AGENT MARKET ---
+function renderMarket(c) {
+    c.innerHTML = `
+        <h2>🌍 Free Agents Market (Top 50)</h2>
+        <div class="market-filters">
+            <label for="market-filter-wc">Filter by Weight Class:</label>
+            <select id="market-filter-wc" onchange="setMarketFilter(this.value)">
+                <option value="ALL">All Weight Classes</option>
+                ${WEIGHT_CLASSES.map(wc => `<option value="${wc.id}">${wc.name}</option>`).join('')}
+            </select>
+            <label for="market-sort">Sort By:</label>
+            <select id="market-sort" onchange="setMarketSort(this.value)">
+                <option value="RANK">Rank</option>
+                <option value="VALUE">Value</option>
+                <option value="SALARY">Salary</option>
+            </select>
+        </div>
+        <div class="grid" id="market-grid">No free agents available.</div>
+        <div style="margin-top: 20px; font-size: 0.9em; color: #94a3b8;">
+            *Free Agents are the top uncontracted fighters in the world pool. They demand a one-time signing bonus (Value) and a per-fight salary.
+        </div>
+    `;
+    
+    // Set current filter/sort values
+    document.getElementById('market-filter-wc').value = game.marketFilter;
+    document.getElementById('market-sort').value = game.marketSort;
+
+    renderMarketFighters();
+}
+
+function setMarketFilter(wcId) {
+    game.marketFilter = wcId;
+    renderMarketFighters();
+    SFX.click();
+}
+
+function setMarketSort(sortKey) {
+    game.marketSort = sortKey;
+    renderMarketFighters();
+    SFX.click();
+}
+
+function renderMarketFighters() {
+    refreshMarket(); // Ensure market array is up-to-date
+    const grid = document.getElementById('market-grid');
+    if (!grid) return;
+
+    let filteredFighters = game.market;
+    
+    // Filter
+    if(game.marketFilter !== 'ALL') {
+        filteredFighters = filteredFighters.filter(f => f.weightClass.id === game.marketFilter);
+    }
+    
+    // Sort
+    if(game.marketSort === 'RANK') {
+        filteredFighters.sort((a, b) => b.rankPoints - a.rankPoints);
+    } else if(game.marketSort === 'VALUE') {
+        filteredFighters.sort((a, b) => b.value - a.value);
+    } else if(game.marketSort === 'SALARY') {
+        filteredFighters.sort((a, b) => b.salary - a.salary);
+    }
+    
+    if(filteredFighters.length === 0) {
+        grid.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; color: #94a3b8;">No fighters meet the current filter criteria.</div>';
+        return;
+    }
+
+    grid.innerHTML = filteredFighters.map(f => `
+        <div class="card" style="cursor:pointer;" onclick="nav('profile', '${f.id}')">
+            <div class="card-header">
+                <span class="weight-tag">${f.weightClass.name}</span>
+                <span style="color:#aaa">Rank: #${getRank(f)}</span>
+            </div>
+            <div class="card-title">${f.fullName}</div>
+            <div class="stat-grid" style="margin-top:5px;">
+                <div>Value (Signing Bonus): <span class="money">$${f.value.toLocaleString()}</span></div>
+                <div>Salary (Per Fight): <span class="money">$${f.salary.toLocaleString()}</span></div>
+                <div>Record: <span class="stat-val">${f.wins}-${f.losses}</span></div>
+                <div>Style: <span class="stat-val">${f.style}</span></div>
+            </div>
+            <button class="btn-hire btn-small" style="width:100%; margin-top:10px;" onclick="event.stopPropagation(); signFighter('${f.id}')">Sign (Pay $${f.value.toLocaleString()})</button>
+        </div>
+    `).join('');
+}
+
+
+// --- FIGHTER PROFILE ---
+function renderFighterProfile(c, fighterId) {
+    const f = getFighter(fighterId);
+    if (!f) { c.innerHTML = `Fighter not found.`; return; }
+
+    const isRosterFighter = game.roster.includes(f);
+    const isInjured = game.injuries.find(i => i.fighterId === f.id);
+    const trainingMsg = f.trainingFocus ? `Focus: ${f.trainingFocus}` : 'No focus.';
+    const nextFightMsg = isRosterFighter ? (game.card.fights.some(fight => fight.red?.id === f.id || fight.blue?.id === f.id) ? `<span style="color:var(--success)">Booked on next card!</span>` : `<span style="color:var(--danger)">Unbooked.</span>`) : `Free Agent.`;
+
+    c.innerHTML = `
+        <h2 style="border-color:${f.isChampion ? 'var(--gold)' : 'var(--primary)'}">${f.fullName} <span style="font-size:0.8em; color:#888">${f.weightClass.name}</span></h2>
+        <div class="grid">
+            <div class="card" style="grid-column: span 2;">
+                <div style="font-size:1.2em; font-weight:bold; margin-bottom:10px;">General Info</div>
+                <div class="stat-grid" style="grid-template-columns: 1fr 1fr 1fr;">
+                    <div>Age: <span class="stat-val">${Math.floor(f.age)}</span></div>
+                    <div>Style: <span class="stat-val">${f.style}</span></div>
+                    <div>Nationality: <span class="stat-val">${f.nation.flag} ${f.nation.code}</span></div>
+                    <div>Record: <span class="stat-val" style="color:var(--gold)">${f.wins}-${f.losses}</span></div>
+                    <div>Rank Points: <span class="stat-val">${Math.floor(f.rankPoints)}</span></div>
+                    <div>Status: <span class="stat-val">${f.isChampion ? 'CHAMPION' : `#${getRank(f)}`}</span></div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div style="font-size:1.2em; font-weight:bold; margin-bottom:10px;">Attributes</div>
+                ${renderStatBar('Striking', f.striking, 'var(--primary)')}
+                ${renderStatBar('Grappling', f.grappling, 'var(--secondary)')}
+                ${renderStatBar('Stamina', f.stamina, 'var(--success)')}
+                ${renderStatBar('Chin/Durability', f.chin, 'var(--info)')}
+            </div>
+
+            <div class="card">
+                <div style="font-size:1.2em; font-weight:bold; margin-bottom:10px;">Management Details</div>
+                <div class="stat-grid">
+                    <div>Salary: <span class="money">$${f.salary.toLocaleString()}</span></div>
+                    <div>Contract: <span class="stat-val">${f.contract} Fights</span></div>
+                    <div>Training: <span class="stat-val">${trainingMsg}</span></div>
+                    <div>Next Fight: <span class="stat-val">${nextFightMsg}</span></div>
+                </div>
+                
+                <div style="margin-top:20px;">
+                    ${isInjured 
+                        ? `<button class="btn-small" style="background:var(--danger); width:100%;">INJURED: ${isInjured.weeksOut} weeks out</button>`
+                        : (isRosterFighter 
+                            ? `<button class="btn-small" style="width:100%;" onclick="nav('training')">Change Training Focus</button>
+                               <button class="btn-small" style="width:100%; background:var(--danger); margin-top:5px;" onclick="retireFighter('${f.id}')">Release Fighter</button>`
+                            : `<button class="btn-hire btn-small" style="width:100%;" onclick="signFighter('${f.id}')">Sign Fighter ($${f.value.toLocaleString()})</button>`
+                        )}
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function renderStatBar(name, value, color) {
+    return `
+        <div style="font-size:0.9em; margin-bottom:10px;">
+            ${name}: <span style="font-weight:bold; color:${color}">${value}</span>/99
+            <div class="profile-stat-bar">
+                <div class="profile-stat-fill" style="width:${(value/99)*100}%; background:${color}"></div>
+            </div>
+        </div>
+    `;
+}
+
+
+// --- MATCHMAKER ---
+let pendingCard = [];
+let selectedVenue = null;
+
+function renderMatchmaker(c) {
+    if (game.card.booked) { c.innerHTML = `<div style="text-align:center; padding:50px;"><h2>Event Already Booked!</h2><button class="btn-action" onclick="nav('event')">Go to Event</button></div>`; return; }
+
+    if(pendingCard.length === 0) {
+        pendingCard = [];
+        selectedVenue = VENUES[0];
+        // Ensure initial slot is rendered if this is a fresh navigation
+        setTimeout(addFightSlot, 1); 
+    }
+
+    c.innerHTML = `
+        <h2>⚔️ Event Booking</h2>
+        <div style="display:flex; gap:20px; height: calc(100vh - 180px);">
+            <div style="flex:1; overflow-y:auto; padding-right:10px;">
+                <div style="margin-bottom:20px;">
+                    <h3>🏟️ Select Venue</h3>
+                    <div id="venue-selector" class="grid" style="grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));">
+                        ${VENUES.map((v, i) => `
+                            <div class="card venue-card ${selectedVenue && selectedVenue.name === v.name ? 'selected' : (i === 0 && !selectedVenue ? 'selected' : '')}" onclick="selectVenue(${i})" id="venue-${i}">
+                                <div style="font-weight:bold">${v.name}</div>
+                                <div class="venue-details">
+                                    Cost: $${v.cost.toLocaleString()}<br>
+                                    Gate Multiplier: x${v.gateMultiplier.toFixed(1)}<br>
+                                    Sponsor Bonus: $${v.sponsorBonus.toLocaleString()}
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+                
+                <h3>🗃️ Fight Card Slots</h3>
+                <div id="card-slots">
+                    ${pendingCard.map((slot, index) => renderFightSlot(slot, index)).join('')}
+                </div>
+                <button onclick="addFightSlot()" style="width:100%; border:1px dashed #666; text-align:center; padding:15px; margin-top:10px;">+ Add Fight Slot</button>
+                <div style="margin-top:20px; border-top:1px solid #333; padding-top:20px;">
+                    <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
+                        <span>Total Projected Costs:</span>
+                        <span id="proj-cost" style="color:#ef4444">$0</span>
+                    </div>
+                    <button class="btn-action" style="width:100%" onclick="finalizeCard()">Confirm Card (Pay Venue/Salaries)</button>
+                </div>
+            </div>
+            
+            <div style="width:300px; background:#111; border:1px solid #333; display:flex; flex-direction:column;">
+                <div style="padding:10px; background:var(--panel); border-bottom:1px solid #333">Roster Selector (Click fighter to assign)</div>
+                <div id="mm-roster-list" style="flex:1; overflow-y:auto; padding:10px;">
+                    ${renderMMRosterList()}
+                </div>
+            </div>
+        </div>
+    `;
+
+    // Ensure cost is correct on load
+    selectVenue(VENUES.findIndex(v => v.name === selectedVenue.name)); 
+    // Reapply active selector highlighting
+    if (activeSelector) {
+        const activeEl = document.getElementById(`slot-${activeSelector.slot}-${activeSelector.corner}`);
+        if (activeEl) activeEl.classList.add('active');
+    }
+}
+
+let activeSelector = null; // { slot: 0, corner: 'red' }
+
+function renderFightSlot(slot, index) {
+    const red = slot.red ? getFighter(slot.red.id) : null;
+    const blue = slot.blue ? getFighter(slot.blue.id) : null;
+    const titleTag = slot.isTitle ? '<span class="champ-tag" style="background:var(--primary); color:#fff;">TITLE FIGHT</span>' : '';
+    const weightClassTag = red ? red.weightClass.id : (blue ? blue.weightClass.id : 'N/A');
+
+    return `
+        <div class="fight-slot" id="slot-${index}">
+            <div style="font-size:0.8em; color:#888; display:flex; justify-content:space-between; align-items:center;">
+                <span>${weightClassTag} ${titleTag}</span>
+                <button class="btn-small" style="color:var(--danger); background:transparent; padding:0;" onclick="removeSlot(${index})">Remove</button>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:5px;">
+                <div class="slot-fighter ${red ? 'filled' : ''} ${activeSelector && activeSelector.slot === index && activeSelector.corner === 'red' ? 'active' : ''}" id="slot-${index}-red" onclick="selectSlot(${index}, 'red')">
+                    <div style="font-weight:bold">${red ? red.lastName : "Select Red"}</div>
+                    <div style="font-size:0.8em">${red ? red.wins+'-'+red.losses : 'Click to Pick'}</div>
+                </div>
+                <div class="slot-vs">VS</div>
+                <div class="slot-fighter ${blue ? 'filled' : ''} ${activeSelector && activeSelector.slot === index && activeSelector.corner === 'blue' ? 'active' : ''}" id="slot-${index}-blue" onclick="selectSlot(${index}, 'blue')">
+                    <div style="font-weight:bold">${blue ? blue.lastName : "Select Blue"}</div>
+                    <div style="font-size:0.8em">${blue ? blue.wins+'-'+blue.losses : 'Click to Pick'}</div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function removeSlot(index) {
+    pendingCard.splice(index, 1);
+    if(activeSelector && activeSelector.slot === index) activeSelector = null;
+    nav('matchmaker');
+}
+
+function renderMMRosterList() {
+    let html = '';
+    
+    // Roster fighters available to be booked
+    const availableRoster = game.roster.filter(f => {
+        const isBooked = pendingCard.some(p => p.red?.id === f.id || p.blue?.id === f.id);
+        const isInjured = game.injuries.some(i => i.fighterId === f.id);
+        return !isBooked && !isInjured;
+    });
+
+    availableRoster.forEach(f => {
+        const isEligible = activeSelector && isMatchmakingEligible(f, pendingCard[activeSelector.slot], activeSelector.corner);
+        // Show all roster fighters, but disable/grey out ineligible ones
+        const style = isEligible ? 'cursor:pointer;' : 'opacity:0.5; cursor:default;';
+
+        html += `
+            <div style="padding:10px; border-bottom:1px solid #333; ${style}" 
+                onclick="${isEligible ? `assignFighter('${f.id}')` : `notify('Cannot assign: Weight mismatch or already booked.')`}">
+                <div style="font-weight:bold">${f.lastName}</div>
+                <div style="font-size:0.8em; color:#888">${f.weightClass.id} | ${f.wins}-${f.losses} | $${f.salary.toLocaleString()}</div>
+            </div>
+        `;
+    });
+    return html;
+}
+
+function isMatchmakingEligible(fighter, slot, corner) {
+    if (!fighter) return false;
+    
+    // Check if fighter is already assigned to a slot (handled in renderMMRosterList filter, but good to double check)
+    if (pendingCard.some(p => p.red?.id === fighter.id || p.blue?.id === fighter.id)) return false; 
+    
+    const opponentId = corner === 'red' ? slot.blue?.id : slot.red?.id;
+    
+    if(opponentId) {
+        const opponent = getFighter(opponentId);
+        // Check weight class match
+        if(opponent && opponent.weightClass.id !== fighter.weightClass.id) {
+            return false;
+        }
+    }
+    return true;
+}
+
+function assignFighter(id) {
+    if(!activeSelector) { notify("Select a slot (Red/Blue) first."); SFX.error(); return; }
+    
+    const f = getFighter(id);
+    const slot = pendingCard[activeSelector.slot];
+    const corner = activeSelector.corner;
+
+    if(!isMatchmakingEligible(f, slot, corner)) {
+        notify(`Cannot assign ${f.lastName}: Weight mismatch with opponent.`);
+        SFX.error();
+        return;
+    }
+
+    // Assign fighter to the slot (reference by ID only)
+    if(corner === 'red') slot.red = { id: id };
+    else slot.blue = { id: id };
+
+    // Update isTitle flag if a champion is being matched against the #1 contender (simple logic)
+    if (slot.red && slot.blue) {
+        const redFighter = getFighter(slot.red.id);
+        const blueFighter = getFighter(slot.blue.id);
+        const wc = redFighter.weightClass; 
+        
+        if (wc.champion) {
+            const champion = getFighter(wc.champion);
+            const opponent = redFighter === champion ? blueFighter : (blueFighter === champion ? redFighter : null);
+
+            // Check if one is the champ and the other is ranked high (Top 5)
+            if (champion && opponent) {
+                const opponentRank = getRank(opponent);
+                if (opponentRank >= 1 && opponentRank <= 5) {
+                    slot.isTitle = true;
+                }
+            }
+        }
+    }
+
+    // Re-render matchmaker to update slots and roster list
+    nav('matchmaker'); 
+    SFX.click();
+}
+
+function selectSlot(slotIdx, corner) {
+    activeSelector = { slot: slotIdx, corner: corner };
+    nav('matchmaker'); // Re-render to highlight the active slot and update the roster list
+}
+
+function addFightSlot(redFighterId=null, blueFighterId=null, isTitle=false) {
+    const slot = { 
+        red: redFighterId ? { id: redFighterId } : null, 
+        blue: blueFighterId ? { id: blueFighterId } : null, 
+        isTitle: isTitle, 
+        winner: null 
+    };
+    pendingCard.push(slot);
+    nav('matchmaker');
+    SFX.click();
+}
+
+function selectVenue(index) {
+    selectedVenue = VENUES[index];
+    document.querySelectorAll('.venue-card').forEach(v => v.classList.remove('selected'));
+    document.getElementById(`venue-${index}`).classList.add('selected');
+    updateCost();
+    SFX.click();
+}
+
+function calcFightSalaries() {
+    return pendingCard.reduce((total, slot) => {
+        if(slot.red) total += getFighter(slot.red.id)?.salary || 0;
+        if(slot.blue) total += getFighter(slot.blue.id)?.salary || 0;
+        return total;
+    }, 0);
+}
+
+function updateCost() {
+    if (selectedVenue) {
+        const totalSalaries = calcFightSalaries();
+        const totalCost = selectedVenue.cost + totalSalaries;
+        document.getElementById('proj-cost').innerText = `$${totalCost.toLocaleString()}`;
+    }
+}
+
+function finalizeCard() {
+    const validFights = pendingCard.filter(s => s.red && s.blue);
+    if(validFights.length === 0) { notify("Book at least 1 full fight."); return; }
+
+    const totalCost = selectedVenue.cost + calcFightSalaries();
+    if(game.money < totalCost) {
+        notify("Insufficient funds to book the event!");
+        SFX.error(); return;
+    }
+
+    game.money -= totalCost;
+    
+    // Store full fighter objects in the main card object for the sim
+    game.card.fights = validFights.map(slot => ({
+        red: getFighter(slot.red.id),
+        blue: getFighter(slot.blue.id),
+        isTitle: slot.isTitle
+    }));
+    game.card.booked = true;
+    game.card.venue = selectedVenue;
+    game.card.totalCost = totalCost;
+    
+    document.getElementById('btn-event-nav').classList.remove('hidden');
+    document.getElementById('sidebar-event-status').innerText = "Event Ready";
+    document.getElementById('sidebar-event-venue').innerText = game.card.venue.name;
+    document.getElementById('sidebar-event-status').style.color = "var(--success)";
+    
+    selectedVenue = null;
+    pendingCard = [];
+    activeSelector = null;
+
+    SFX.cash();
+    notify("Event Booked and Paid For!");
+    updateUI();
+    nav('dashboard');
+}
+
+// --- UTILITY FUNCTIONS ---
+function getFighter(id) {
+    return game.worldPool.find(f => f.id === id);
+}
+
+function getRankedFighters(wcId) {
+    return game.worldPool
+        .filter(f => f.weightClass.id === wcId)
+        .sort((a,b) => b.rankPoints - a.rankPoints);
+}
+
+function getRank(fighter) {
+    const list = getRankedFighters(fighter.weightClass.id);
+    // Find the fighter's index and add 1 for the rank, but check if they are the champion first
+    if(fighter.isChampion) return 0; // Champion is rank 0 for display
+    return list.indexOf(fighter) + 1;
+}
+
+function calcOverhead() {
+    // Base ops + Roster salary + Gym cost - Sponsorship
+    const payroll = game.roster.reduce((a, b) => a + b.salary, 0);
+    const gymCost = game.gymLevel * 500;
+    return 1000 + payroll + gymCost - game.sponsorship;
+}
+
+function refreshMarket() {
+    // Find top 50 fighters not under contract, not on our roster, and not injured
+    const freeAgents = game.worldPool.filter(f => 
+        f.contract === 0 && 
+        !game.roster.includes(f) && 
+        !game.injuries.some(i => i.fighterId === f.id)
+    );
+    // Sort by rank points and take the top 50
+    game.market = freeAgents.sort((a, b) => b.rankPoints - a.rankPoints).slice(0, 50);
+}
+
+function signFighter(id) {
+    const f = game.worldPool.find(fighter => fighter.id === id);
+    if (!f) return;
+    
+    if(game.money < f.value) { notify("Not enough money to sign the bonus!"); SFX.error(); return; }
+    if(game.roster.length >= 25) { notify("Roster limit reached (25 fighters)."); SFX.error(); return; }
+    
+    game.money -= f.value;
+    f.contract = 5; 
+    game.roster.push(f);
+    
+    refreshMarket();
+    
+    SFX.cash();
+    notify(`${f.lastName} Signed for 5 fights!`);
+    updateUI();
+    nav('market');
+}
+
+function retireFighter(id) {
+    const f = game.roster.find(f => f.id === id);
+    if (!f) return;
+    
+    if (game.money < 500) { notify("Cannot afford the release fee."); SFX.error(); return; }
+
+    game.money -= 500;
+    
+    // Clear champion status if applicable
+    if(f.isChampion) {
+        const wc = WEIGHT_CLASSES.find(w => w.id === f.weightClass.id);
+        wc.champion = null;
+        f.isChampion = false;
+        notify(`The ${f.weightClass.name} title is now vacant!`);
+    }
+
+    f.contract = 0;
+    game.roster = game.roster.filter(r => r.id !== id);
+    // Remove injury if applicable
+    game.injuries = game.injuries.filter(i => i.fighterId !== f.id);
+
+    refreshMarket();
+    SFX.click();
+    notify(`${f.lastName} Released!`);
+    updateUI();
+    nav('roster');
+}
+
+function updateUI() {
+    document.getElementById('ui-money').innerText = `$${game.money.toLocaleString()}`;
+    document.getElementById('ui-rep').innerText = game.reputation;
+    document.getElementById('ui-week').innerText = game.week;
+    const net = game.sponsorship - calcOverhead();
+    document.getElementById('ui-fin-status').innerText = net >= 0 ? `+${net.toLocaleString()}` : `${net.toLocaleString()}`;
+    document.getElementById('ui-fin-status').style.color = net >= 0 ? 'var(--success)' : 'var(--danger)';
+}
+
+function notify(message) {
+    const toast = document.getElementById('toast');
+    toast.innerText = message;
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 3000);
+}
+
+
+function nextWeek() {
+    if(game.card.booked) { notify("Event booked! Run it first."); SFX.error(); return; }
+    
+    game.week++;
+    
+    // 1. Process Training & Aging
+    processTraining();
+    
+    // 2. Weekly Overhead
+    const overhead = calcOverhead();
+    game.money -= overhead;
+    
+    // 3. Process Injuries
+    processInjuries();
+
+    // 4. Financial Crisis Check
+    if(game.money < 0) { 
+        alert(`GAME OVER! You ran out of money on Week ${game.week}.`); 
+        location.reload(); 
+        return; 
+    }
+
+    // 5. Market and World Pool updates
+    refreshMarket();
+    // Simplified progression for non-roster
+    game.worldPool.filter(f => f.contract === 0).forEach(f => {
+        if(Math.random() < 0.1) f.rankPoints += (Math.random() * 5); 
+    });
+
+    notify(`Advanced to Week ${game.week}. Weekly Net: $${(game.sponsorship - calcOverhead()).toLocaleString()}`);
+    updateUI();
+    nav('dashboard');
+}
+
+function processTraining() {
+    game.roster.forEach(f => {
+        const injury = game.injuries.some(i => i.fighterId === f.id);
+        if(injury) { 
+            f.trainingFocus = null; 
+            return;
+        }
+
+        if(f.trainingFocus) {
+            const roll = Math.random() * 100;
+            const successRate = 30 + (game.gymLevel * 5); 
+
+            if(roll < successRate) {
+                if(f.trainingFocus === 'STR' && f.striking < 99) f.striking++;
+                else if(f.trainingFocus === 'GRP' && f.grappling < 99) f.grappling++;
+            }
+        }
+        
+        // Aging and Decay
+        f.age += (1/52); 
+        if(f.age > 35 && Math.random() < 0.15 && f.stamina > 40) { f.stamina--; }
+    });
+}
+
+function processInjuries() {
+    game.injuries.forEach(i => { i.weeksOut--; });
+    game.injuries = game.injuries.filter(i => i.weeksOut > 0);
+}
+
+// --- GYM/TRAINING FUNCTIONS ---
+function upgradeGym() {
+    const cost = game.gymLevel * 50000;
+    if(game.money < cost) { notify("Not enough money for the upgrade!"); SFX.error(); return; }
+    
+    game.money -= cost;
+    game.gymLevel++;
+    // Gain a permanent sponsorship for prestige
+    game.sponsorship += 10000;
+    SFX.cash();
+    notify(`Gym upgraded to Level ${game.gymLevel}! New weekly sponsorship: +$10,000.`);
+    updateUI();
+    nav('training');
+}
+
+function renderTraining(c) {
+    const gymCost = game.gymLevel * 500;
+    const upgradeCost = (game.gymLevel + 1) * 50000;
+    const upgradeButton = game.gymLevel < 5 
+        ? `<button class="btn-action" style="width:100%;" onclick="upgradeGym()">Upgrade to Level ${game.gymLevel + 1} ($${upgradeCost.toLocaleString()})</button>`
+        : `<button disabled style="width:100%; background:#444;">Gym Max Level Reached</button>`;
+
+    c.innerHTML = `
+        <h2>🏋️ Gym & Training Management</h2>
+        <div class="grid" style="grid-template-columns: 1fr 2fr;">
+            <div class="card">
+                <h3>🏢 Gym Status</h3>
+                <div class="stat-grid">
+                    <div>Level: <span class="stat-val">${game.gymLevel}</span></div>
+                    <div>Weekly Cost: <span class="stat-val">$${gymCost.toLocaleString()}</span></div>
+                    <div>Training Bonus: <span class="stat-val">+${game.gymLevel * 5}% Success</span></div>
+                </div>
+                ${upgradeButton}
+            </div>
+
+            <div class="card">
+                <h3>💪 Fighter Training Focus</h3>
+                <div style="max-height: 400px; overflow-y: auto;">
+                    ${game.roster.length === 0 ? '<p>Sign fighters to your roster to begin training.</p>' : game.roster.map(f => `
+                        <div style="display:flex; justify-content:space-between; align-items:center; padding:10px; border-bottom:1px solid #333;">
+                            <div style="font-weight:bold">${f.lastName} (${f.weightClass.id}) - <span style="color:var(--gold)">${f.trainingFocus || 'None'}</span></div>
+                            <div>
+                                <button class="btn-small" onclick="setTrainingFocus('${f.id}', 'STR')" style="background:${f.trainingFocus === 'STR' ? 'var(--primary)' : 'var(--panel)'}">STR</button>
+                                <button class="btn-small" onclick="setTrainingFocus('${f.id}', 'GRP')" style="background:${f.trainingFocus === 'GRP' ? 'var(--primary)' : 'var(--panel)'}">GRP</button>
+                                <button class="btn-small" onclick="setTrainingFocus('${f.id}', null)" style="background:${f.trainingFocus === null ? 'var(--success)' : 'var(--panel)'}">Rest</button>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function setTrainingFocus(id, focus) {
+    const f = game.roster.find(r => r.id === id);
+    if (!f) return;
+
+    if (game.injuries.some(i => i.fighterId === f.id)) {
+        notify(`${f.lastName} is injured and cannot train.`);
+        SFX.error();
+        return;
+    }
+    
+    f.trainingFocus = focus;
+    notify(`${f.lastName} is now focusing on ${focus || 'recovery'}.`);
+    renderTraining(document.getElementById('view-container')); // Re-render this view only
+}
+
+// --- CHAMPIONSHIPS / RANKINGS PLACEHOLDERS ---
+
+function renderChampionships(c) {
+    c.innerHTML = `
+        <h2>👑 World Championships</h2>
+        <div class="grid">
+            ${WEIGHT_CLASSES.map(wc => {
+                const champ = getFighter(wc.champion);
+                const champName = champ ? champ.fullName : '<span style="color:var(--danger)">VACANT</span>';
+                const challenger = getRankedFighters(wc.id).filter(f => f.id !== wc.champion)[0];
+                const challengerName = challenger ? challenger.lastName : 'TBD';
+
+                return `
+                    <div class="card" style="border-left: 5px solid ${champ ? 'var(--gold)' : 'var(--danger)'}">
+                        <div style="font-size:1.2em; font-weight:bold; color:var(--primary)">${wc.name}</div>
+                        <h3 style="margin:5px 0;">${champName}</h3>
+                        <div style="font-size:0.9em; color:#94a3b8;">
+                            Next Challenger: #${challenger ? getRank(challenger) : 'N/A'} ${challengerName}
+                        </div>
+                        ${champ && game.roster.includes(champ) ? 
+                            `<button class="btn-small" style="margin-top:10px; background:var(--gold); color:#000;" onclick="nav('profile', '${champ.id}')">View Champ</button>` : ''}
+                    </div>
+                `;
+            }).join('')}
+        </div>
+    `;
+}
+
+function renderRankings(c) {
+    c.innerHTML = `<h2>🏆 Global Fighter Rankings</h2><div id="rankings-container"></div>`;
+    
+    const container = document.getElementById('rankings-container');
+
+    WEIGHT_CLASSES.forEach(wc => {
+        const rankedList = getRankedFighters(wc.id).slice(0, 15); // Top 15
+        
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.style.marginBottom = '20px';
+        card.innerHTML = `
+            <div style="font-size:1.2em; font-weight:bold; border-bottom:1px solid #444; padding-bottom:10px; color:var(--secondary);">${wc.name} Rankings</div>
+            <table style="width:100%; margin-top:10px; border-collapse: collapse;">
+                <thead>
+                    <tr style="font-size:0.8em; color:#94a3b8;">
+                        <th style="text-align:left; padding:5px 0;">Rank</th>
+                        <th style="text-align:left;">Fighter</th>
+                        <th style="text-align:left;">Record</th>
+                        <th style="text-align:right;">Points</th>
+                        <th style="text-align:right;">Mgr</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${rankedList.map((f, index) => `
+                        <tr style="border-top:1px solid #333; cursor:pointer;" onclick="nav('profile', '${f.id}')">
+                            <td style="padding:5px 0; font-weight:bold; color:${f.isChampion ? 'var(--gold)' : (index < 5 ? 'var(--info)' : 'var(--text)')}">
+                                ${f.isChampion ? 'CH' : index + 1}
+                            </td>
+                            <td>${f.fullName}</td>
+                            <td>${f.wins}-${f.losses}</td>
+                            <td style="text-align:right;">${Math.floor(f.rankPoints)}</td>
+                            <td style="text-align:right;">${game.roster.includes(f) ? '<span style="color:var(--success)">YOU</span>' : 'CPU'}</td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+        `;
+        container.appendChild(card);
+    });
+}
+
+
+// --- EVENT SIMULATION LOGIC ---
+let currentFightIndex = 0;
+
+function renderEvent(c) {
+    if (!game.card.booked) {
+        c.innerHTML = `<div style="text-align:center; padding:50px;"><h2>No Event Booked!</h2><button onclick="nav('matchmaker')">Book Event</button></div>`;
+        return;
+    }
+    
+    const event = game.card;
+    const fight = event.fights[currentFightIndex];
+    
+    let content;
+    if (fight) {
+        content = `
+            <h2>🔥 Event Day: ${event.venue.name}</h2>
+            <div style="font-size:1.5em; font-weight:bold; color:var(--primary); margin-bottom:20px;">
+                Main Event: ${fight.red.lastName} vs ${fight.blue.lastName}
+            </div>
+            
+            <h3>Current Fight: ${fight.isTitle ? '👑 TITLE FIGHT' : 'Non-Title Fight'} - ${fight.red.weightClass.name}</h3>
+            <div style="display:flex; justify-content:space-around; align-items:center; margin-bottom:20px;">
+                <div style="text-align:center;">
+                    <div style="font-weight:bold; color:var(--primary); font-size:1.2em;">${fight.red.fullName}</div>
+                    <div style="font-size:0.9em;">${fight.red.wins}-${fight.red.losses} | STR:${fight.red.striking} GRP:${fight.red.grappling}</div>
+                    <div class="health-bar-container" style="width:100px;">
+                        <div id="hp-red" class="health-bar-fill" style="width:100%; background:var(--primary)"></div>
+                    </div>
+                </div>
+                <div style="font-size:2em; font-weight:900; color:var(--gold);">VS</div>
+                <div style="text-align:center;">
+                    <div style="font-weight:bold; color:var(--secondary); font-size:1.2em;">${fight.blue.fullName}</div>
+                    <div style="font-size:0.9em;">${fight.blue.wins}-${fight.blue.losses} | STR:${fight.blue.striking} GRP:${fight.blue.grappling}</div>
+                    <div class="health-bar-container" style="width:100px;">
+                        <div id="hp-blue" class="health-bar-fill" style="width:100%; background:var(--secondary)"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="log-container" id="sim-log">Ready to fight...</div>
+            <button class="btn-action" id="btn-fight-start" onclick="runFightSim()">START FIGHT</button>
+        `;
+    } else {
+        // Event finished
+        const revenue = calculateGateRevenue(event.venue);
+        const profit = revenue - event.totalCost;
+        game.money += revenue;
+
+        content = `
+            <h2>✅ Event Complete!</h2>
+            <p style="font-size:1.2em; font-weight:bold;">${event.venue.name} is in the books!</p>
+            <p>Total Fights: ${event.fights.length}</p>
+            
+            <div class="card" style="margin-top:20px;">
+                <div style="font-size:1.1em; font-weight:bold; color:var(--gold); margin-bottom:10px;">Financial Report</div>
+                <div class="stat-grid">
+                    <div>Gate Revenue:</div> <div style="text-align:right;" class="money">+$${revenue.toLocaleString()}</div>
+                    <div>Venue/Salary Cost:</div> <div style="text-align:right; color:var(--danger)">-$${event.totalCost.toLocaleString()}</div>
+                    <div style="border-top:1px solid #333; padding-top:5px;">NET PROFIT:</div> 
+                    <div style="border-top:1px solid #333; padding-top:5px; text-align:right; color:${profit >= 0 ? 'var(--success)' : 'var(--danger)'}">
+                        ${profit >= 0 ? '+' : ''}$${profit.toLocaleString()}
+                    </div>
+                </div>
+            </div>
+
+            <div style="margin-top:30px;">
+                <button class="btn-action" style="width:100%" onclick="finishEvent()">Continue to Next Week >></button>
+            </div>
+        `;
+    }
+
+    c.innerHTML = content;
+}
+
+function calculateGateRevenue(venue) {
+    // Simplified formula: Capacity * (Reputation/10) * Gate Multiplier + Sponsor Bonus
+    const baseGate = venue.capacity * (game.reputation / 10) * venue.gateMultiplier;
+    return Math.floor(baseGate) + venue.sponsorBonus;
+}
+
+function finishEvent() {
+    game.card.booked = false;
+    game.card.fights = [];
+    currentFightIndex = 0;
+    
+    // Update sidebar
+    document.getElementById('btn-event-nav').classList.add('hidden');
+    document.getElementById('sidebar-event-status').innerText = "No Event Booked";
+    document.getElementById('sidebar-event-venue').innerText = "";
+    document.getElementById('sidebar-event-status').style.color = "var(--gold)";
+
+    notify("Event officially closed. Rankings updated!");
+    nextWeek(); // Immediately advance the week after event
+}
+
+
+function runFightSim() {
+    // Activate context for sound on user interaction
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    
+    const fight = game.card.fights[currentFightIndex];
+    document.getElementById('btn-fight-start').style.display = 'none';
+    
+    let redHP = 100;
+    let blueHP = 100;
+    let round = 1;
+    let log = document.getElementById('sim-log');
+    log.innerHTML = 'Fight started...';
+
+    SFX.bell();
+    
+    const simInterval = setInterval(() => {
+        if(round > 5 || redHP <= 0 || blueHP <= 0) {
+            clearInterval(simInterval);
+            processFightResult(fight, redHP, blueHP, log);
+            return;
+        }
+
+        log.innerHTML += `<br>--- ROUND ${round} ---<br>`;
+        
+        // Stamina check: Fighters with low stamina take less damage and inflict less
+        const redStaminaMod = fight.red.stamina / 100;
+        const blueStaminaMod = fight.blue.stamina / 100;
+
+        for(let i=0; i<5; i++) {
+            if(redHP <=0 || blueHP <=0) break;
+            
+            const attacker = Math.random() > 0.5 ? fight.red : fight.blue;
+            const defender = attacker === fight.red ? fight.blue : fight.red;
+            
+            const attackerMod = attacker === fight.red ? redStaminaMod : blueStaminaMod;
+            
+            const isGrapple = Math.random() < 0.3; // 30% chance of a grapple attempt
+            
+            let damage = 0;
+            let text = "";
+
+            const attackStat = isGrapple ? attacker.grappling : attacker.striking;
+            const defStat = isGrapple ? defender.grappling : defender.striking;
+            
+            // Success chance based on stats
+            const successRoll = attackStat + (Math.random() * 20) * attackerMod;
+            const defenseRoll = defStat + (Math.random() * 10);
+            
+            if (successRoll > defenseRoll) {
+                // Damage calculation, influenced by attacker's stat and durability/chin
+                damage = Math.floor(Math.random() * (isGrapple ? 10 : 15)) + 5;
+                damage = Math.round(damage * attackerMod); // Stamina reduces damage
+                
+                if(damage > 15) { text = `${attacker.lastName} lands a bomb!`; SFX.hit_heavy(); }
+                else { text = `${attacker.lastName} connects with a shot.`; SFX.hit_light(); }
+            } else {
+                text = `${defender.lastName} defends the ${isGrapple ? 'takedown' : 'strike'}.`;
+            }
+
+            if(damage > 0) {
+                // Chin reduces damage taken
+                damage = Math.max(1, damage - Math.floor(defender.chin / 15));
+                if(attacker === fight.red) blueHP -= damage; else redHP -= damage;
+                
+                document.getElementById('hp-red').style.width = Math.max(0, redHP) + '%';
+                document.getElementById('hp-blue').style.width = Math.max(0, blueHP) + '%';
+            }
+
+            log.innerHTML += `> ${text}<br>`;
+        }
+        log.scrollTop = log.scrollHeight;
+        round++;
+
+    }, 1000);
+}
+
+function processFightResult(fight, redHP, blueHP, logEl) {
+    const winner = redHP > blueHP ? fight.red : fight.blue;
+    const loser = winner === fight.red ? fight.blue : fight.red;
+    let method = "Decision"; // Default for 5 rounds
+    
+    if (redHP <= 0 || blueHP <= 0) {
+        method = "KO/TKO";
+    }
+
+    logEl.innerHTML += `<br><strong style="color:yellow">🏆 WINNER: ${winner.fullName} by ${method}</strong><br>`;
+    logEl.scrollTop = logEl.scrollHeight;
+    SFX.cheer();
+    
+    // 1. Update Records & Contracts
+    fight.winner = winner;
+    winner.wins++;
+    loser.losses++;
+    winner.contract = Math.max(0, winner.contract - 1);
+    loser.contract = Math.max(0, loser.contract - 1);
+
+    // 2. Update Rankings (More points for upsets and finishes)
+    const pointsModifier = method === "KO/TKO" ? 1.5 : 1.0;
+    updateRankings(winner, loser, pointsModifier);
+    
+    // 3. Update Reputation (Win against higher-ranked fighter increases rep)
+    if (getRank(winner) < getRank(loser)) { // Winner was lower-ranked (an "upset")
+        game.reputation += 1;
+        notify("Franchise reputation increased from a major win!");
+    } else if (winner.isChampion && method === "KO/TKO") {
+        game.reputation += 2;
+        notify("Franchise reputation boosted by a dominant title defense!");
+    }
+
+    // 4. Injury Risk (Loser has higher risk)
+    if (Math.random() < 0.25) { // 25% risk of injury for the loser
+        const weeks = Math.floor(Math.random() * 8) + 2; // 2-10 weeks out
+        game.injuries.push({ fighterId: loser.id, weeksOut: weeks });
+        notify(`${loser.lastName} suffered an injury and is out for ${weeks} weeks!`);
+        logEl.innerHTML += `<strong style="color:var(--danger)">⚠️ ${loser.lastName} injured!</strong><br>`;
+    }
+
+    // 5. Championship Logic
+    if(fight.isTitle) {
+        const wc = WEIGHT_CLASSES.find(w => w.id === winner.weightClass.id);
+        if(loser.isChampion) {
+            loser.isChampion = false;
+        }
+        if(!winner.isChampion) {
+            winner.isChampion = true;
+            wc.champion = winner.id;
+            logEl.innerHTML += `<strong style="color:var(--gold)">NEW CHAMPION! The belt belongs to ${winner.lastName}!</strong><br>`;
+        } else {
+            logEl.innerHTML += `<strong style="color:var(--gold)">CHAMPION successfully defends the title.</strong><br>`;
+        }
+    }
+
+    // 6. Move to next fight
+    setTimeout(() => {
+        currentFightIndex++;
+        renderEvent(document.getElementById('view-container'));
+    }, 3000);
+}
+
+function updateRankings(winner, loser, modifier = 1.0) {
+    const diff = loser.rankPoints - winner.rankPoints;
+    const kFactor = 25; 
+    const gain = Math.max(5, kFactor + (diff * 0.05)) * modifier; // Higher modifier for KO/TKO
+
+    winner.rankPoints += gain;
+    loser.rankPoints -= gain;
+    
+    // Ensure world pool is sorted after every week/event for accurate rankings
+    game.worldPool.sort((a,b) => b.rankPoints - a.rankPoints);
+}
+
+
+// Start Game
+initGame();
+updateUI(); // Initial UI update
+</script>
+</body>
+</html>
